@@ -47,6 +47,7 @@ For a quick frontend demo, start only the client:
 ```powershell
 cd C:\path\to\q2\client
 npm ci
+Set-Content .env.local "VITE_USE_MOCK_API=true"
 npm run dev
 ```
 
@@ -57,7 +58,7 @@ Open <http://localhost:5173> and use one of these sample accounts:
 
 You can also register a customer account. Demo accounts, events, and seat changes are saved in this browser only. The demo supports event creation, seat holds, and bookings, but it does not run the real API, MongoDB transactions, or cross-browser live updates. Do not enter a real password in demo mode.
 
-The development frontend uses this demo automatically. To use the real API instead, set `VITE_USE_MOCK_API=false` in `client\.env.local`, then start MongoDB and the server using the steps below.
+The development frontend uses the real API by default. Demo mode is only enabled when `VITE_USE_MOCK_API=true` is set in `client\.env.local`. To switch back to the real API, remove that setting or change it to `false`, then restart the client.
 
 ## Start the website
 
@@ -94,7 +95,7 @@ npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173>. Customers can register from the sign-in page. To use the organizer features, sign in with the organizer email and password from `server\.env`.
+Open <http://localhost:5173>. Customers can register from the sign-in page. To use the organizer features, sign in with the organizer email and password from `server\.env`. If you previously enabled frontend demo mode, remove `client\.env.local` or set `VITE_USE_MOCK_API=false`, then restart the client.
 
 ### If registration or sign-in does not work
 
