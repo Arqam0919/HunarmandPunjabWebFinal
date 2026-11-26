@@ -1,6 +1,11 @@
+import { mockRequest } from './mockApi.js';
+
 const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+const isMockApi = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API !== 'false';
 
 export async function request(path, { token, ...options } = {}) {
+  if (isMockApi) return mockRequest(path, { token, ...options });
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers: {
@@ -17,4 +22,4 @@ export async function request(path, { token, ...options } = {}) {
   return body;
 }
 
-export { baseUrl };
+export { baseUrl, isMockApi };

@@ -38,6 +38,25 @@ For a local MongoDB installation on Windows:
 
 You can use a MongoDB Atlas replica-set connection instead. In that case, use its connection string in the server settings below.
 
+## Try the frontend without MongoDB
+
+For a quick frontend demo, start only the client:
+
+```powershell
+cd C:\path\to\q2\client
+npm ci
+npm run dev
+```
+
+Open <http://localhost:5173> and use one of these sample accounts:
+
+- Customer: `customer@seatlock.demo` / `customer123`
+- Organizer: `organizer@seatlock.demo` / `organizer123`
+
+You can also register a customer account. Demo accounts, events, and seat changes are saved in this browser only. The demo supports event creation, seat holds, and bookings, but it does not run the real API, MongoDB transactions, or cross-browser live updates. Do not enter a real password in demo mode.
+
+The development frontend uses this demo automatically. To use the real API instead, set `VITE_USE_MOCK_API=false` in `client\.env.local`, then start MongoDB and the server using the steps below.
+
 ## Start the website
 
 Keep MongoDB running, then open two more PowerShell windows.

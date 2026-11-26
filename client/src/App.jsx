@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import { baseUrl, request } from './api.js';
+import { baseUrl, isMockApi, request } from './api.js';
+import { demoMode } from './mockApi.js';
+
+function DemoNotice() {
+  if (!isMockApi) return null;
+  return (
+    <aside className="demo-notice" role="status">
+      <strong>Local demo mode</strong>
+      <span>Accounts and bookings stay in this browser; no server or database is used. Use demo credentials, not a real password.</span>
+      <small>Customer: {demoMode.customerEmail} / {demoMode.customerPassword}</small>
+      <small>Organizer: {demoMode.organizerEmail} / {demoMode.organizerPassword}</small>
+    </aside>
+  );
+}
 
 function AuthForm({ onLogin }) {
   const [mode, setMode] = useState('login');
@@ -32,6 +45,7 @@ function AuthForm({ onLogin }) {
         <p className="eyebrow">LIVE EVENT SEATING</p>
         <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
         <p className="muted">Sign in to find an event and reserve your seats.</p>
+        <DemoNotice />
         <form onSubmit={submit}>
           {mode === 'register' && (
             <label>Name<input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
@@ -116,57 +130,59 @@ function EventView({ eventId, token, user }) {
 
   useEffect(() => {
     let active = true;
-    const socket = io(baseUrl.replace(/\/api\/?$/, ''), { auth: { token } });
+    const socket = isMockApi ? null : io(baseUrl.replace(/\/api\/?$/, ''), { auth: { token } });
     const refreshEvent = () => request(`/events/${eventId}`, { token })
       .then((data) => { if (active) setEvent((current) => mergeEventSnapshot(current, data)); })
       .catch((requestError) => { if (active) setError(requestError.message); });
 
-    socket.on('connect', () => {
-      if (!active) return;
-      setConnected(true);
-      setError('');
-      socket.emit('event:join', eventId, (result) => {
+    if (socket) {
+      socket.on('connect', () => {
         if (!active) return;
-        if (result?.error) {
-          setError(result.error);
-          return;
-        }
-        refreshEvent();
+        setConnected(true);
+        setError('');
+        socket.emit('event:join', eventId, (result) => {
+          if (!active) return;
+          if (result?.error) {
+            setError(result.error);
+            return;
+          }
+          refreshEvent();
+        });
       });
-    });
-    socket.on('disconnect', () => {
-      if (active) setConnected(false);
-    });
-    socket.on('connect_error', (socketError) => {
-      if (active) setError(`Live updates unavailable: ${socketError.message}`);
-    });
-    socket.on('seat:changed', (changed) => {
-      if (!active) return;
-      setEvent((current) => {
-        if (!current) return current;
-        const seat = current.seats.find((item) => item.id === changed.id);
-        if (!seat || Number(changed.revision || 0) <= Number(seat.revision || 0)) return current;
-        return {
-          ...current,
-          seats: current.seats.map((item) => item.id === changed.id
-            ? {
-              ...item,
-              status: changed.status,
-              expiresAt: changed.expiresAt,
-              revision: changed.revision,
-              mine: changed.holderId === user.id
-            }
-            : item)
-        };
+      socket.on('disconnect', () => {
+        if (active) setConnected(false);
       });
-    });
+      socket.on('connect_error', (socketError) => {
+        if (active) setError(`Live updates unavailable: ${socketError.message}`);
+      });
+      socket.on('seat:changed', (changed) => {
+        if (!active) return;
+        setEvent((current) => {
+          if (!current) return current;
+          const seat = current.seats.find((item) => item.id === changed.id);
+          if (!seat || Number(changed.revision || 0) <= Number(seat.revision || 0)) return current;
+          return {
+            ...current,
+            seats: current.seats.map((item) => item.id === changed.id
+              ? {
+                ...item,
+                status: changed.status,
+                expiresAt: changed.expiresAt,
+                revision: changed.revision,
+                mine: changed.holderId === user.id
+              }
+              : item)
+          };
+        });
+      });
+    }
     refreshEvent();
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => {
       active = false;
       window.clearInterval(timer);
-      socket.removeAllListeners();
-      socket.disconnect();
+      socket?.removeAllListeners();
+      socket?.disconnect();
     };
   }, [eventId, token, user.id]);
 
@@ -239,7 +255,7 @@ function EventView({ eventId, token, user }) {
     <section className="event-view">
       <div className="section-heading">
         <div><p className="eyebrow">LIVE SEAT MAP</p><h2>{event.title}</h2><p className="muted">{new Date(event.date).toLocaleString()}</p></div>
-        <span className={`live-pill${connected ? '' : ' offline'}`}><i /> {connected ? 'Live updates' : 'Reconnecting'}</span>
+        <span className={`live-pill${connected || isMockApi ? '' : ' offline'}`}><i /> {isMockApi ? 'Demo mode' : connected ? 'Live updates' : 'Reconnecting'}</span>
       </div>
       <div className="legend">
         <span><i className="available-dot" /> Available</span>
@@ -305,6 +321,7 @@ function Dashboard({ auth, onLogout }) {
         <div className="account"><span>{auth.user.name} <small>{auth.user.role}</small></span><button className="outline" onClick={onLogout}>Sign out</button></div>
       </header>
       <div className="content">
+        <DemoNotice />
         {!selectedId ? (
           <>
             <div className="hero">
