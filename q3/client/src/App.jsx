@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from './api.js';
+import { demoAccounts } from './mockApi.js';
 
 const SHIPPING_FEE = 764;
 const FREE_SHIPPING_THRESHOLD = 1714;
@@ -9,16 +11,6 @@ function readSession() {
   } catch {
     return null;
   }
-}
-
-async function api(path, { token, ...options } = {}) {
-  const headers = { ...(options.headers || {}) };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (options.body) headers['Content-Type'] = 'application/json';
-  const response = await fetch(path, { ...options, headers });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || `Request failed (${response.status}).`);
-  return data;
 }
 
 function money(amount) {
@@ -74,6 +66,14 @@ function AuthForm({ onSignedIn, showError }) {
             {busy ? 'Just a moment…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
+        {import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API !== 'false' && (
+          <div className="demo-accounts">
+            <p className="eyebrow">Quick demo sign-in</p>
+            <p>Customer: <code>{demoAccounts.customerEmail}</code> / <code>{demoAccounts.customerPassword}</code></p>
+            <p>Admin: <code>{demoAccounts.adminEmail}</code> / <code>{demoAccounts.adminPassword}</code></p>
+            <small>Demo data stays in this browser. Don't use a real password here.</small>
+          </div>
+        )}
         <p className="switch-mode">
           {mode === 'login' ? 'New to CartCraft?' : 'Already have an account?'}{' '}
           <button className="text-button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>

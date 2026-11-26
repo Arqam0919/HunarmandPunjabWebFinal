@@ -12,10 +12,28 @@ CartCraft is a small React and Express shop for the Q3 checkout paper. Products,
 - Owner-only order details, admin order access, and transactional cancellation that returns stock once.
 - A responsive product, cart, and orders interface. If checkout times out, retrying keeps the same key.
 - Sample products and separate seeded admin/customer accounts for a quick local walkthrough.
+- A browser-only, array-backed demo mode for trying the screens without starting MongoDB.
 
-## Run it locally
+## Try it in the browser without MongoDB
 
-Use Node.js 20 or newer. MongoDB must run as a **replica set** because checkout and cancellation use transactions. A local MongoDB installation can be started as a single-node replica set:
+The Vite development app uses sample data by default. Start the client:
+
+```powershell
+cd q3\client
+npm install
+npm run dev
+```
+
+Open <http://localhost:5174> and sign in with either sample account:
+
+- Customer: `customer@cartcraft.demo` / `customer123`
+- Admin: `admin@cartcraft.demo` / `admin123`
+
+The demo keeps its users, products, cart, and orders in this browser's local storage. It lets you try adding products, checkout, retries, and cancellation without a database. This is for the UI walkthrough only; it does not exercise MongoDB transactions or real concurrent requests. Do not enter a real password in demo mode.
+
+## Run the MongoDB-backed API
+
+Use Node.js 20 or newer. The real API needs MongoDB running as a **replica set** for safe checkout and cancellation. A local installation can be started as a single-node replica set:
 
 ```powershell
 New-Item -ItemType Directory -Force C:\data\db
@@ -32,14 +50,14 @@ mongosh
 rs.initiate()
 ```
 
-Then configure and start the API:
+Configure and start the API:
 
 ```powershell
 cd q3\server
 Copy-Item .env.example .env
 ```
 
-Set `JWT_SECRET` to a private random value of at least 32 characters, and change the seed account passwords in `.env`. Keep `.env` private. Seed the admin, demo customer, and sample products, then run the server:
+Set `JWT_SECRET` to a private random value of at least 32 characters and change the seed account passwords in `.env`. Keep `.env` private. Then seed the admin, customer, and products, and run the server:
 
 ```powershell
 npm install
@@ -47,7 +65,13 @@ npm run seed
 npm run dev
 ```
 
-In a second terminal, start the React app:
+For browser testing against this API instead of the local demo, create `q3\client\.env.local` with:
+
+```text
+VITE_USE_MOCK_API=false
+```
+
+Then start the client from a second terminal:
 
 ```powershell
 cd q3\client
@@ -55,7 +79,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:5174>. Sign in with the seeded customer account to shop, or the seeded admin account to create products. The API listens on port 4001.
+Open <http://localhost:5174>. The API listens on port 4001.
 
 ## Test the checkout rules
 
@@ -71,4 +95,4 @@ They check that the server uses product-record prices instead of request prices,
 
 ## A few choices, and why
 
-Prices and stock are read from MongoDB inside the checkout transaction, so changing a request body cannot change an order total. Each stock deduction also uses a conditional update that requires enough stock; if a later item fails, the transaction rolls back every earlier deduction and leaves the cart untouched. A unique index on the customer and idempotency key makes retries safe even when the first response is lost. Cancellation updates the order status and restores all items in the same transaction, so a repeated cancel sees the cancelled status and does not add stock again. The browser calculates shipping only to help customers understand the estimate; the server applies the same 764/1,714 rule when it creates the order. The demo seeder and test data are there to make it easy to run the project locally; public registration always creates a customer, while the admin account is created only by the seed script.
+Prices and stock are read from MongoDB inside the checkout transaction, so changing a request body cannot change an order total. Each stock deduction also uses a conditional update that requires enough stock; if a later item fails, the transaction rolls back every earlier deduction and leaves the cart untouched. A unique index on the customer and idempotency key makes retries safe even when the first response is lost. Cancellation updates the order status and restores all items in the same transaction, so a repeated cancel sees the cancelled status and does not add stock again. The browser calculates shipping only to help customers understand the estimate; the server applies the same 764/1,714 rule when it creates the order. The array-backed demo is for quick screen testing and is separate from the MongoDB-backed API. Public registration always creates a customer, while the API admin account is created only by the seed script.
