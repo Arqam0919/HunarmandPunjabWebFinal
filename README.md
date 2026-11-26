@@ -1,5 +1,7 @@
 # SeatLock
 
+Question 3's CartCraft submission is in [q3/](./q3/); the rest of this guide is for the SeatLock Q2 project.
+
 SeatLock is a seat-booking website. Customers can create an account, sign in, and hold or book seats. The organizer signs in with a separate account to create events and seat layouts. The site uses React, Express, MongoDB, and Socket.IO to keep seat updates in sync.
 
 ## Required hold time
