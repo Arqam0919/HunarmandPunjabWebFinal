@@ -137,8 +137,11 @@ a { color: inherit; text-decoration: none; }
 .switch-mode .text-button { margin-left: 3px; font-size: 11px; }
 .demo-accounts { margin-top: 20px; padding: 13px; background: #f1f4ef; color: #607066; font-size: 10px; line-height: 1.5; }
 .demo-accounts .eyebrow { margin-bottom: 6px; }
-.demo-accounts p { margin: 4px 0; }
+.demo-account-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.demo-account-row p { margin: 4px 0; }
 .demo-accounts code { color: #284b3a; font-size: 10px; }
+.demo-fill { padding: 3px 8px; border: 1px solid #cbd6c9; border-radius: 3px; background: #fff; color: #284b3a; font-size: 10px; }
+.demo-fill:hover { background: #e6eee6; }
 .demo-accounts small { display: block; margin-top: 8px; color: #89938b; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 

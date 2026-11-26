@@ -20,13 +20,22 @@ function money(amount) {
 function AuthForm({ onSignedIn, showError }) {
   const [mode, setMode] = useState('login');
   const [busy, setBusy] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  function fillDemoAccount(account) {
+    setMode('login');
+    setEmail(account.email);
+    setPassword(account.password);
+    showError('');
+  }
 
   async function submit(event) {
     event.preventDefault();
     showError('');
     setBusy(true);
-    const form = new FormData(event.currentTarget);
-    const body = Object.fromEntries(form.entries());
+    const body = mode === 'login' ? { email, password } : { name, email, password };
     try {
       const result = await api(`/api/auth/${mode === 'login' ? 'login' : 'register'}`, {
         method: 'POST',
@@ -51,16 +60,16 @@ function AuthForm({ onSignedIn, showError }) {
           {mode === 'register' && (
             <label>
               Your name
-              <input name="name" autoComplete="name" required maxLength={80} />
+              <input name="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required maxLength={80} />
             </label>
           )}
           <label>
             Email address
-            <input name="email" type="email" autoComplete="email" required />
+            <input name="email" value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required />
           </label>
           <label>
             Password
-            <input name="password" type="password" minLength={8} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required />
+            <input name="password" value={password} onChange={(event) => setPassword(event.target.value)} type="password" minLength={8} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required />
           </label>
           <button className="button button-primary full-width" type="submit" disabled={busy}>
             {busy ? 'Just a moment…' : mode === 'login' ? 'Sign in' : 'Create account'}
@@ -69,8 +78,14 @@ function AuthForm({ onSignedIn, showError }) {
         {import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API !== 'false' && (
           <div className="demo-accounts">
             <p className="eyebrow">Quick demo sign-in</p>
-            <p>Customer: <code>{demoAccounts.customerEmail}</code> / <code>{demoAccounts.customerPassword}</code></p>
-            <p>Admin: <code>{demoAccounts.adminEmail}</code> / <code>{demoAccounts.adminPassword}</code></p>
+            <div className="demo-account-row">
+              <p>Customer <code>{demoAccounts.customerEmail}</code></p>
+              <button type="button" className="demo-fill" onClick={() => fillDemoAccount({ email: demoAccounts.customerEmail, password: demoAccounts.customerPassword })}>Use</button>
+            </div>
+            <div className="demo-account-row">
+              <p>Admin <code>{demoAccounts.adminEmail}</code></p>
+              <button type="button" className="demo-fill" onClick={() => fillDemoAccount({ email: demoAccounts.adminEmail, password: demoAccounts.adminPassword })}>Use</button>
+            </div>
             <small>Demo data stays in this browser. Don't use a real password here.</small>
           </div>
         )}
