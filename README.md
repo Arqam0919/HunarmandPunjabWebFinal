@@ -1,6 +1,6 @@
 # SeatLock
 
-SeatLock is a React, Express, MongoDB and Socket.IO event-seat booking app. The hold duration is **774 seconds** (60 + N, using N = 714 from the numeric suffix of the supplied roll number).
+SeatLock is a React, Express, MongoDB and Socket.IO event-seat booking app. The hold duration is exactly **774 seconds** (60 + N, using N = 714 from the numeric suffix of the supplied roll number); this personal rule is fixed in the server code.
 
 ## Requirements
 
@@ -16,7 +16,7 @@ For a local single-node MongoDB replica set, start MongoDB with `--replSet rs0`,
 
    ```powershell
    cd server
-   npm install
+   npm ci
    npm run seed:organizer
    npm run dev
    ```
@@ -25,11 +25,21 @@ For a local single-node MongoDB replica set, start MongoDB with `--replSet rs0`,
 
    ```powershell
    cd client
-   npm install
+   npm ci
    npm run dev
    ```
 
 4. Open `http://localhost:5173`. Register customer accounts from the sign-in screen. Sign in as the configured organizer to create an event and seat grid.
+
+## Tests
+
+Run the backend's input-validation tests from `server/`:
+
+```powershell
+npm test
+```
+
+These tests do not require MongoDB. The concurrency test below requires a running API and a MongoDB replica set.
 
 ## Concurrency test
 
