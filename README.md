@@ -1,49 +1,95 @@
 # SeatLock
 
-SeatLock is a React, Express, MongoDB and Socket.IO event-seat booking app. The hold duration is exactly **774 seconds** (60 + N, using N = 714 from the numeric suffix of the supplied roll number); this personal rule is fixed in the server code.
+SeatLock is a seat-booking website. Customers can create an account, sign in, and hold or book seats. The organizer signs in with a separate account to create events and seat layouts. The site uses React, Express, MongoDB, and Socket.IO to keep seat updates in sync.
 
-## Requirements
+## Required hold time
 
-- Node.js 18 or newer
-- MongoDB running as a replica set (transactions are required for safe multi-document hold/booking changes)
+For this examination, the roll number is **714**. The hold lasts **60 + 714 = 774 seconds**, which is 12 minutes and 54 seconds. This duration is set in the server code.
 
-For a local single-node MongoDB replica set, start MongoDB with `--replSet rs0`, then run `mongosh` and execute `rs.initiate()`. MongoDB Atlas replica-set clusters also work.
+## Before you start
 
-## Setup
+Install Node.js 18 or newer and MongoDB. MongoDB must run as a **replica set** because SeatLock uses database transactions to safely manage seats.
 
-1. In `server/`, copy `.env.example` to `.env`. Set a strong `JWT_SECRET`, MongoDB URI, and organizer credentials.
-2. Install and start the API:
+For a local MongoDB installation on Windows:
 
-   ```powershell
-   cd server
-   npm ci
-   npm run seed:organizer
-   npm run dev
-   ```
-
-3. In a second terminal, install and start React:
+1. Create a database folder if you do not already have one:
 
    ```powershell
-   cd client
-   npm ci
-   npm run dev
+   New-Item -ItemType Directory -Force C:\data\db
    ```
 
-4. Open `http://localhost:5173`. Register customer accounts from the sign-in screen. Sign in as the configured organizer to create an event and seat grid.
+2. Start MongoDB in one PowerShell window and leave it running:
 
-## Tests
+   ```powershell
+   mongod --replSet rs0 --dbpath C:\data\db
+   ```
 
-Run the backend's input-validation tests from `server/`:
+3. In a second PowerShell window, start the MongoDB shell and initialize the replica set once:
+
+   ```powershell
+   mongosh
+   ```
+
+   At the `mongosh` prompt, run:
+
+   ```javascript
+   rs.initiate()
+   ```
+
+You can use a MongoDB Atlas replica-set connection instead. In that case, use its connection string in the server settings below.
+
+## Start the website
+
+Keep MongoDB running, then open two more PowerShell windows.
+
+### 1. Set up and start the server
+
+In the first window, go to the server folder, make your private settings file, and install the server packages:
+
+```powershell
+cd C:\path\to\q2\server
+Copy-Item .env.example .env
+npm ci
+```
+
+Open `server\.env` and set `JWT_SECRET` to a private value that is at least 32 characters long. If you are using MongoDB Atlas, replace `MONGODB_URI` with your Atlas connection string. Do not share or commit this `.env` file.
+
+Create the organizer account using the name, email, and password in `.env`, then start the server:
+
+```powershell
+npm run seed:organizer
+npm run dev
+```
+
+Leave this window running. The server connects to MongoDB and listens on port 4000.
+
+### 2. Start the website
+
+In the second window, install the website packages and start the development site:
+
+```powershell
+cd C:\path\to\q2\client
+npm ci
+npm run dev
+```
+
+Open <http://localhost:5173>. Customers can register from the sign-in page. To use the organizer features, sign in with the organizer email and password from `server\.env`.
+
+### If registration or sign-in does not work
+
+The website needs both the server and MongoDB running. Starting only the website is not enough. Check that the server window says it is listening on port 4000 and that MongoDB is still running as a replica set. You can also open <http://localhost:4000/api/health>; a working server responds with `{"status":"ok"}`.
+
+## Run the tests
+
+The server's input-validation tests do not need MongoDB. From the `server` folder, run:
 
 ```powershell
 npm test
 ```
 
-These tests do not require MongoDB. The concurrency test below requires a running API and a MongoDB replica set.
+## Check that two customers cannot hold the same seat
 
-## Concurrency test
-
-Create an event and ensure its target seat is Available. Register at least two customers using the same password (8+ characters), then run the test from `server/` in PowerShell:
+This check needs the server and replica-set MongoDB running. First, create an event with an available seat and register at least two customer accounts. In the `server` folder, set the event ID, seat ID, and customer login details in PowerShell, then run the test:
 
 ```powershell
 $env:TEST_EVENT_ID = "<event id>"
@@ -53,11 +99,12 @@ $env:TEST_CUSTOMER_PASSWORD = "<shared customer password>"
 npm run test:concurrency
 ```
 
-The script sends simultaneous hold requests and passes only when exactly one request succeeds. Reset/recreate the test seat to Available before running it again.
+The test passes when one customer holds the seat and the other is told it is no longer available. Make the seat available again before running the test a second time.
 
-## Correctness notes
+## How seat protection works
 
-- A seat is claimed with a conditional MongoDB update that only matches Available seats or expired holds. The four-seat cap is enforced by an atomic per-user counter in the same transaction.
-- Hold expiry is stored in MongoDB. A worker releases due holds and broadcasts changes; startup also processes expired holds, so a server restart does not extend them.
-- Booking changes every selected hold and the hold counter in one transaction. If a hold is expired, missing, or belongs to someone else, the booking is rejected without booking any of the requested seats.
-- Organizers are provisioned with the seed script; public registration always creates Customer accounts.
+- A customer can hold no more than four seats at once.
+- A seat can only be held if it is available or its earlier hold has expired.
+- Hold times are saved in MongoDB, so restarting the server does not give someone extra time.
+- A booking either completes for all selected seats or none of them. Expired, missing, or other customers' holds are rejected.
+- Seat changes are sent to connected browsers so customers see updates without refreshing.
