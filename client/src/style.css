@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root{font-family:"DM Sans",sans-serif;color:#f5f4f0;background:#101419;font-synthesis:none;text-rendering:optimizeLegibility;font-weight:400;--muted:#9a9ea3;--line:#282e34;--lime:#c2f26b;--panel:#171d22}
+*{box-sizing:border-box}
+body{margin:0;min-width:320px;min-height:100vh;background:radial-gradient(ellipse at 75% -10%,#253127 0,transparent 38%),#101419}
+button,input{font:inherit}
+button{cursor:pointer}
+.auth-shell{min-height:100vh;display:grid;place-items:center;padding:24px}
+.auth-card{width:min(100%,430px);padding:42px;background:#171d22;border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 80px #0005}
+.brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:var(--lime);color:#172011;font:bold 24px "Space Grotesk";margin-bottom:28px}
+.eyebrow{font-size:10px;letter-spacing:2px;color:var(--lime);font-weight:700;margin:0 0 10px}
+h1,h2,.brand{font-family:"Space Grotesk",sans-serif}
+.auth-card h1{font-size:30px;margin:0}
+.muted{color:var(--muted);line-height:1.55}
+.auth-card form,.organizer-form{display:grid;gap:16px;margin-top:24px}
+label{display:grid;gap:7px;color:#c5c8cb;font-size:12px;font-weight:600}
+input{width:100%;border:1px solid #343b41;background:#11171b;color:#f5f4f0;padding:12px;border-radius:8px;outline:none}
+input:focus{border-color:var(--lime)}
+.primary{background:var(--lime);color:#1a2211;border:0;border-radius:8px;padding:12px 18px;font-weight:700;transition:filter .15s,transform .15s}
+.primary:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
+.primary:disabled{opacity:.42;cursor:not-allowed}
+.full{width:100%;margin-top:5px}
+.text-button,.back-button{border:0;background:none;color:var(--lime);padding:12px 0 0;font-size:12px}
+.error{color:#ff9797;font-size:13px}
+.success{color:var(--lime);font-size:13px}
+.dashboard{max-width:1180px;margin:auto;padding:0 38px}
+.topbar{height:82px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.brand{font-size:23px;font-weight:700;color:#fff;text-decoration:none;letter-spacing:-1px}.brand span{color:var(--lime)}
+.account{display:flex;align-items:center;gap:19px;font-size:13px}.account small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-top:3px}
+.outline{color:#ddd;background:transparent;border:1px solid #444d54;padding:8px 14px;border-radius:7px;font-size:12px}
+.content{max-width:850px;margin:0 auto}
+.hero{padding:80px 0 56px}
+.hero h1{font-size:clamp(54px,9vw,88px);line-height:.98;letter-spacing:-5px;margin:0}
+.hero h1 span{color:var(--lime)}
+.hero .muted{max-width:480px;margin-top:24px;font-size:15px}
+.section-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.section-heading h2{margin:0;font-size:25px;letter-spacing:-1px}
+.section-heading .muted{margin:7px 0 0;font-size:13px}
+.event-count,.live-pill{border:1px solid #343c42;border-radius:99px;color:#b8bdc1;padding:7px 12px;font-size:11px}
+.events-section{padding:0 0 70px}
+.event-list{display:grid;gap:10px}
+.event-card{width:100%;display:flex;align-items:center;text-align:left;gap:17px;border:1px solid var(--line);background:#171d22;color:#f4f4f0;padding:16px;border-radius:11px}
+.event-card:hover{border-color:#687250;background:#1a211e}
+.calendar{width:48px;height:48px;display:grid;align-content:center;justify-items:center;border-radius:8px;background:#252e25;color:var(--lime)}
+.calendar b{font:700 18px "Space Grotesk"}.calendar small{font-size:9px;text-transform:uppercase}
+.event-info{display:grid;gap:5px;flex:1}.event-info b{font-size:14px}.event-info small{color:var(--muted);font-size:11px}.arrow{font-size:20px;color:var(--lime)}
+.empty-state{border:1px dashed #3a4248;border-radius:10px;padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.organizer-form{padding:23px;border:1px solid #353d37;border-radius:12px;background:#171d22;margin:0 0 50px}
+.organizer-form .section-heading{margin-bottom:0}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.organizer-form>.primary{justify-self:start}
+.selected-event{padding:30px 0 70px}
+.back-button{padding:0 0 23px;color:var(--muted)}
+.back-button:hover{color:var(--lime)}
+.event-view{padding:25px;border:1px solid var(--line);border-radius:13px;background:#151b20}
+.live-pill{display:flex;align-items:center;gap:8px;color:var(--lime);border-color:#3e5031}
+.live-pill i{width:7px;height:7px;background:var(--lime);border-radius:50%;box-shadow:0 0 12px var(--lime)}
+.legend{display:flex;flex-wrap:wrap;gap:18px;color:#bbc0c4;font-size:11px;margin:28px 0 22px}
+.legend span{display:flex;align-items:center;gap:7px}
+.legend i{width:10px;height:10px;display:inline-block;border-radius:3px}
+.available-dot{background:#37413f}.held-dot{background:#d5994d}.mine-dot{background:var(--lime)}.booked-dot{background:#754b50}
+.stage{width:66%;margin:0 auto 29px;text-align:center;color:#8f9a92;font-size:9px;letter-spacing:5px;padding:12px;border-top:2px solid #637856;border-radius:50% 50% 0 0;box-shadow:0 -8px 18px -18px var(--lime)}
+.seat-map{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:8px}
+.seat{min-height:52px;border:1px solid #39423e;border-radius:7px;background:#202925;color:#d9e0db;display:grid;place-content:center;gap:2px;font-size:10px}
+.seat span{font-weight:700}.seat small{font-size:8px;color:#98a39c}
+.seat-available:hover:not(:disabled){border-color:var(--lime);color:var(--lime);transform:translateY(-1px)}
+.seat-held{background:#362c20;border-color:#805f36;color:#edc28a}.seat-booked{background:#342528;border-color:#654348;color:#c88a91;cursor:not-allowed}
+.seat-mine{background:#28351e;border-color:var(--lime);color:var(--lime)}
+.seat:disabled{cursor:not-allowed}
+.booking-bar{display:flex;align-items:center;justify-content:space-between;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
+.booking-bar p{color:#c1c5c2;font-size:12px}
+footer{text-align:center;border-top:1px solid var(--line);padding:24px;color:#697078;font-size:9px;letter-spacing:2px}
+@media(max-width:620px){.dashboard{padding:0 18px}.hero{padding:60px 0 42px}.hero h1{letter-spacing:-3px}.form-grid{grid-template-columns:1fr}.event-view{padding:17px}.seat-map{grid-template-columns:repeat(4,minmax(0,1fr))}.seat{min-height:48px}.booking-bar{align-items:flex-start;gap:12px}.booking-bar .primary{padding:11px 12px;font-size:11px}.auth-card{padding:28px}.section-heading h2{font-size:21px}}
