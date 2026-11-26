@@ -9,8 +9,11 @@ export async function request(path, { token, ...options } = {}) {
       ...options?.headers
     }
   });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.message || 'Request failed.');
+  const contentType = response.headers.get('content-type') || '';
+  const body = contentType.includes('application/json')
+    ? await response.json()
+    : { message: await response.text() };
+  if (!response.ok) throw new Error(body.message || `Request failed (${response.status}).`);
   return body;
 }
 

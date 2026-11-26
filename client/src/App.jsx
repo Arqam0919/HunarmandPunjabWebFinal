@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { baseUrl, request } from './api.js';
 
@@ -90,68 +90,145 @@ function OrganizerPanel({ token, onCreated }) {
   );
 }
 
+function mergeEventSnapshot(current, incoming) {
+  if (!current) return incoming;
+  const currentSeats = new Map(current.seats.map((seat) => [seat.id, seat]));
+  return {
+    ...incoming,
+    seats: incoming.seats.map((seat) => {
+      const currentSeat = currentSeats.get(seat.id);
+      return currentSeat && Number(currentSeat.revision || 0) > Number(seat.revision || 0)
+        ? currentSeat
+        : seat;
+    })
+  };
+}
+
 function EventView({ eventId, token, user }) {
   const [event, setEvent] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [now, setNow] = useState(Date.now());
+  const [connected, setConnected] = useState(false);
+  const [pendingSeatIds, setPendingSeatIds] = useState(() => new Set());
+  const [booking, setBooking] = useState(false);
+  const bookingLock = useRef(false);
+
   useEffect(() => {
     let active = true;
     const socket = io(baseUrl.replace(/\/api\/?$/, ''), { auth: { token } });
-    request(`/events/${eventId}`, { token })
-      .then((data) => { if (active) setEvent(data); })
+    const refreshEvent = () => request(`/events/${eventId}`, { token })
+      .then((data) => { if (active) setEvent((current) => mergeEventSnapshot(current, data)); })
       .catch((requestError) => { if (active) setError(requestError.message); });
-    socket.emit('event:join', eventId, (result) => {
-      if (result?.error) setError(result.error);
+
+    socket.on('connect', () => {
+      if (!active) return;
+      setConnected(true);
+      setError('');
+      socket.emit('event:join', eventId, (result) => {
+        if (!active) return;
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
+        refreshEvent();
+      });
+    });
+    socket.on('disconnect', () => {
+      if (active) setConnected(false);
+    });
+    socket.on('connect_error', (socketError) => {
+      if (active) setError(`Live updates unavailable: ${socketError.message}`);
     });
     socket.on('seat:changed', (changed) => {
-      setEvent((current) => current && ({
-        ...current,
-        seats: current.seats.map((seat) => seat.id === changed.id
-          ? { ...seat, status: changed.status, expiresAt: changed.expiresAt, mine: false }
-          : seat)
-      }));
+      if (!active) return;
+      setEvent((current) => {
+        if (!current) return current;
+        const seat = current.seats.find((item) => item.id === changed.id);
+        if (!seat || Number(changed.revision || 0) <= Number(seat.revision || 0)) return current;
+        return {
+          ...current,
+          seats: current.seats.map((item) => item.id === changed.id
+            ? {
+              ...item,
+              status: changed.status,
+              expiresAt: changed.expiresAt,
+              revision: changed.revision,
+              mine: changed.holderId === user.id
+            }
+            : item)
+        };
+      });
     });
+    refreshEvent();
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => {
       active = false;
       window.clearInterval(timer);
+      socket.removeAllListeners();
       socket.disconnect();
     };
-  }, [eventId, token]);
+  }, [eventId, token, user.id]);
 
   async function takeSeat(seat) {
     setError('');
     setNotice('');
+    setPendingSeatIds((current) => new Set(current).add(seat.id));
     try {
       const result = await request(`/events/${eventId}/seats/${seat.id}/hold`, { token, method: 'POST', body: '{}' });
-      setEvent((current) => ({
+      setEvent((current) => current && ({
         ...current,
-        seats: current.seats.map((item) => item.id === seat.id ? result.seat : item)
+        seats: current.seats.map((item) => item.id === seat.id &&
+          Number(item.revision || 0) <= Number(result.seat.revision || 0)
+          ? result.seat
+          : item)
       }));
       setNotice(`Seat ${seat.row}-${seat.number} held for ${Math.floor(result.holdDurationSeconds / 60)} minutes ${result.holdDurationSeconds % 60} seconds.`);
     } catch (requestError) {
       setError(requestError.message);
+    } finally {
+      setPendingSeatIds((current) => {
+        const next = new Set(current);
+        next.delete(seat.id);
+        return next;
+      });
     }
   }
 
   async function bookSeats() {
+    if (bookingLock.current) return;
+    bookingLock.current = true;
+    setBooking(true);
     const seatIds = event.seats.filter((seat) => seat.mine && seat.status === 'held').map((seat) => seat.id);
     setError('');
     setNotice('');
     try {
-      const result = await request(`/events/${eventId}/bookings`, {
-        token,
-        method: 'POST',
-        body: JSON.stringify({ seatIds })
-      });
-      setNotice(result.message);
-      const refreshed = await request(`/events/${eventId}`, { token });
-      setEvent(refreshed);
-    } catch (requestError) {
-      setError(requestError.message);
-      const refreshed = await request(`/events/${eventId}`, { token }).catch(() => null);
-      if (refreshed) setEvent(refreshed);
+      try {
+        const result = await request(`/events/${eventId}/bookings`, {
+          token,
+          method: 'POST',
+          body: JSON.stringify({ seatIds })
+        });
+        setNotice(result.message);
+      } catch (requestError) {
+        setError(requestError.message);
+        try {
+          const refreshed = await request(`/events/${eventId}`, { token });
+          setEvent((current) => mergeEventSnapshot(current, refreshed));
+        } catch (refreshError) {
+          setError(`${requestError.message} Seat-map refresh also failed: ${refreshError.message}`);
+        }
+        return;
+      }
+      try {
+        const refreshed = await request(`/events/${eventId}`, { token });
+        setEvent((current) => mergeEventSnapshot(current, refreshed));
+      } catch (refreshError) {
+        setError(`Booking confirmed, but the seat map could not refresh: ${refreshError.message}`);
+      }
+    } finally {
+      bookingLock.current = false;
+      setBooking(false);
     }
   }
 
@@ -162,7 +239,7 @@ function EventView({ eventId, token, user }) {
     <section className="event-view">
       <div className="section-heading">
         <div><p className="eyebrow">LIVE SEAT MAP</p><h2>{event.title}</h2><p className="muted">{new Date(event.date).toLocaleString()}</p></div>
-        <span className="live-pill"><i /> Live updates</span>
+        <span className={`live-pill${connected ? '' : ' offline'}`}><i /> {connected ? 'Live updates' : 'Reconnecting'}</span>
       </div>
       <div className="legend">
         <span><i className="available-dot" /> Available</span>
@@ -182,7 +259,7 @@ function EventView({ eventId, token, user }) {
             <button
               key={seat.id}
               className={`seat seat-${seat.status}${seat.mine ? ' seat-mine' : ''}`}
-              disabled={user.role !== 'customer' || seat.status !== 'available'}
+              disabled={user.role !== 'customer' || seat.status !== 'available' || pendingSeatIds.has(seat.id)}
               onClick={() => takeSeat(seat)}
               title={`Row ${seat.row}, seat ${seat.number}: ${label}`}
             >
@@ -194,7 +271,9 @@ function EventView({ eventId, token, user }) {
       </div>
       <div className="booking-bar">
         <p>{myHeldSeats.length} of 4 seats held by you</p>
-        <button className="primary" disabled={user.role !== 'customer' || myHeldSeats.length === 0} onClick={bookSeats}>Confirm booking</button>
+        <button className="primary" disabled={user.role !== 'customer' || myHeldSeats.length === 0 || booking} onClick={bookSeats}>
+          {booking ? 'Confirming…' : 'Confirm booking'}
+        </button>
       </div>
       {notice && <p className="success">{notice}</p>}
       {error && <p className="error">{error}</p>}
@@ -263,7 +342,17 @@ function Dashboard({ auth, onLogout }) {
 
 export default function App() {
   const [auth, setAuth] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('seatlock-auth')); } catch { return null; }
+    try {
+      const saved = JSON.parse(localStorage.getItem('seatlock-auth'));
+      return saved &&
+        typeof saved.token === 'string' &&
+        typeof saved.user?.id === 'string' &&
+        ['organizer', 'customer'].includes(saved.user.role)
+        ? saved
+        : null;
+    } catch {
+      return null;
+    }
   });
 
   function login(result) {
