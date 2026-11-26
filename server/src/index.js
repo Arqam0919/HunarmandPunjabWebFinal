@@ -31,6 +31,15 @@ app.use('/api/events', eventRoutes);
 app.use((error, req, res, next) => {
   console.error(error);
   if (res.headersSent) return next(error);
+  if (error.code === 11000) {
+    return res.status(409).json({ message: 'A record with that value already exists.' });
+  }
+  if (error.name === 'ValidationError' || error.name === 'CastError' || error.type === 'entity.parse.failed') {
+    return res.status(400).json({ message: 'The request contains invalid data.' });
+  }
+  if (error.type === 'entity.too.large') {
+    return res.status(413).json({ message: 'The request body is too large.' });
+  }
   return res.status(500).json({ message: 'An unexpected server error occurred.' });
 });
 
@@ -47,22 +56,23 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
   socket.on('event:join', async (eventId, acknowledge) => {
+    const respond = typeof acknowledge === 'function' ? acknowledge : () => {};
     try {
       if (!mongoose.isValidObjectId(eventId) || !(await Event.exists({ _id: eventId }))) {
-        return acknowledge && acknowledge({ error: 'Event not found.' });
+        return respond({ error: 'Event not found.' });
       }
       await socket.join(`event:${eventId}`);
-      return acknowledge && acknowledge({ joined: true });
+      return respond({ joined: true });
     } catch (error) {
       console.error('Socket room join failed:', error);
-      return acknowledge && acknowledge({ error: 'Could not join this event.' });
+      return respond({ error: 'Could not join this event.' });
     }
   });
 });
 
 async function start() {
-  if (!process.env.MONGODB_URI || !process.env.JWT_SECRET) {
-    throw new Error('MONGODB_URI and JWT_SECRET must be set.');
+  if (!process.env.MONGODB_URI || !process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('Set MONGODB_URI and a JWT_SECRET of at least 32 characters.');
   }
   await mongoose.connect(process.env.MONGODB_URI);
   await Promise.all([User.init(), Event.init(), Seat.init()]);

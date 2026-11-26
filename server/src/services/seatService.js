@@ -3,7 +3,7 @@ const Event = require('../models/Event');
 const Seat = require('../models/Seat');
 const User = require('../models/User');
 
-const holdSeconds = Number(process.env.HOLD_DURATION_SECONDS || 774);
+const HOLD_DURATION_SECONDS = 60 + 714;
 
 function publicSeat(seat, userId) {
   return {
@@ -12,6 +12,7 @@ function publicSeat(seat, userId) {
     number: seat.number,
     status: seat.status,
     expiresAt: seat.expiresAt,
+    revision: seat.revision,
     mine: Boolean(seat.heldBy && seat.heldBy.toString() === userId.toString())
   };
 }
@@ -22,14 +23,27 @@ function emitSeat(io, eventId, seat) {
     row: seat.row,
     number: seat.number,
     status: seat.status,
-    expiresAt: seat.expiresAt
+    expiresAt: seat.expiresAt,
+    holderId: seat.heldBy ? seat.heldBy.toString() : null,
+    revision: seat.revision
   });
+}
+
+function validateSeatIds(seatIds) {
+  if (!Array.isArray(seatIds) || seatIds.length < 1 || seatIds.length > 4) {
+    return 'Choose between 1 and 4 held seats.';
+  }
+  if (seatIds.some((id) => typeof id !== 'string' || !mongoose.isValidObjectId(id))) {
+    return 'Every seat id must be a valid id.';
+  }
+  if (new Set(seatIds.map((id) => id.toLowerCase())).size !== seatIds.length) {
+    return 'The seat list contains duplicates.';
+  }
+  return null;
 }
 
 async function holdSeat({ io, eventId, seatId, userId }) {
   const session = await mongoose.startSession();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + holdSeconds * 1000);
   let result;
 
   try {
@@ -50,6 +64,7 @@ async function holdSeat({ io, eventId, seatId, userId }) {
         if (!counter) throw Object.assign(new Error('You can hold at most 4 seats at a time.'), { status: 409 });
       }
 
+      const expiresAt = new Date(Date.now() + HOLD_DURATION_SECONDS * 1000);
       const seat = await Seat.findOneAndUpdate(
         {
           _id: seatId,
@@ -59,7 +74,10 @@ async function holdSeat({ io, eventId, seatId, userId }) {
             { status: 'held', $expr: { $lte: ['$expiresAt', '$$NOW'] } }
           ]
         },
-        { $set: { status: 'held', heldBy: userId, expiresAt } },
+        {
+          $set: { status: 'held', heldBy: userId, expiresAt },
+          $inc: { revision: 1 }
+        },
         { new: true, session }
       );
       if (!seat) throw Object.assign(new Error('This seat is no longer available.'), { status: 409 });
@@ -85,12 +103,8 @@ async function holdSeat({ io, eventId, seatId, userId }) {
 }
 
 async function bookSeats({ io, eventId, seatIds, userId }) {
-  if (!Array.isArray(seatIds) || seatIds.length < 1 || seatIds.length > 4) {
-    throw Object.assign(new Error('Choose between 1 and 4 held seats.'), { status: 400 });
-  }
-  if (new Set(seatIds.map(String)).size !== seatIds.length) {
-    throw Object.assign(new Error('The seat list contains duplicates.'), { status: 400 });
-  }
+  const validationError = validateSeatIds(seatIds);
+  if (validationError) throw Object.assign(new Error(validationError), { status: 400 });
 
   const session = await mongoose.startSession();
   let booked = [];
@@ -117,7 +131,10 @@ async function bookSeats({ io, eventId, seatIds, userId }) {
           heldBy: userId,
           $expr: { $gt: ['$expiresAt', '$$NOW'] }
         },
-        { $set: { status: 'booked', heldBy: null, expiresAt: null } },
+        {
+          $set: { status: 'booked', heldBy: null, expiresAt: null },
+          $inc: { revision: 1 }
+        },
         { session }
       );
       if (update.modifiedCount !== seatIds.length) {
@@ -132,12 +149,7 @@ async function bookSeats({ io, eventId, seatIds, userId }) {
       if (counter.modifiedCount !== 1) {
         throw new Error('Seat hold counter is inconsistent; booking was rolled back.');
       }
-      booked = heldSeats.map((seat) => ({
-        ...seat.toObject(),
-        status: 'booked',
-        heldBy: null,
-        expiresAt: null
-      }));
+      booked = await Seat.find({ _id: { $in: seatIds } }).session(session);
     });
   } finally {
     await session.endSession();
@@ -160,7 +172,10 @@ async function expireSeat(io, seatId) {
       if (!current) return;
       const seat = await Seat.findOneAndUpdate(
         { _id: seatId, status: 'held', $expr: { $lte: ['$expiresAt', '$$NOW'] } },
-        { $set: { status: 'available', heldBy: null, expiresAt: null } },
+        {
+          $set: { status: 'available', heldBy: null, expiresAt: null },
+          $inc: { revision: 1 }
+        },
         { new: true, session }
       );
       if (!seat) return;
@@ -188,8 +203,9 @@ async function expireSeat(io, seatId) {
   return expiredSeat;
 }
 
-async function expireDueSeats(io, userId) {
+async function expireDueSeats(io, { eventId, userId } = {}) {
   const filter = { status: 'held', expiresAt: { $lte: new Date() } };
+  if (eventId) filter.event = eventId;
   if (userId) filter.heldBy = userId;
   const dueSeats = await Seat.find(filter)
     .select('_id')
@@ -213,5 +229,7 @@ module.exports = {
   expireDueSeats,
   expireSeat,
   getEventWithSeats,
-  holdSeat
+  holdSeat,
+  HOLD_DURATION_SECONDS,
+  validateSeatIds
 };

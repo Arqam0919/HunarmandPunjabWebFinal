@@ -8,18 +8,28 @@ async function main() {
   if (!MONGODB_URI || !ORGANIZER_NAME || !ORGANIZER_EMAIL || !ORGANIZER_PASSWORD) {
     throw new Error('Set MONGODB_URI and all ORGANIZER_* values in .env first.');
   }
-  if (ORGANIZER_PASSWORD.length < 8) throw new Error('Organizer password must be at least 8 characters.');
+  if (ORGANIZER_PASSWORD.length < 8 || Buffer.byteLength(ORGANIZER_PASSWORD, 'utf8') > 72) {
+    throw new Error('Organizer password must be 8-72 bytes.');
+  }
 
-  await mongoose.connect(MONGODB_URI);
-  const email = ORGANIZER_EMAIL.toLowerCase().trim();
-  const passwordHash = await bcrypt.hash(ORGANIZER_PASSWORD, 12);
-  await User.updateOne(
-    { email },
-    { $setOnInsert: { name: ORGANIZER_NAME, email, passwordHash, role: 'organizer' } },
-    { upsert: true }
-  );
-  console.log(`Organizer account ready: ${email}`);
-  await mongoose.disconnect();
+  try {
+    await mongoose.connect(MONGODB_URI);
+    const email = ORGANIZER_EMAIL.toLowerCase().trim();
+    const existing = await User.findOne({ email });
+    if (existing) {
+      if (existing.role !== 'organizer') {
+        throw new Error(`The email ${email} is already registered as a customer; configure a different organizer email.`);
+      }
+      console.log(`Organizer account already exists: ${email}`);
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(ORGANIZER_PASSWORD, 12);
+    await User.create({ name: ORGANIZER_NAME, email, passwordHash, role: 'organizer' });
+    console.log(`Organizer account created: ${email}`);
+  } finally {
+    await mongoose.disconnect();
+  }
 }
 
 main().catch(async (error) => {

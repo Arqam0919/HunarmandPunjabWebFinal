@@ -7,7 +7,8 @@ const {
   bookSeats,
   expireDueSeats,
   getEventWithSeats,
-  holdSeat
+  holdSeat,
+  HOLD_DURATION_SECONDS
 } = require('../services/seatService');
 
 const router = express.Router();
@@ -25,32 +26,41 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireRole('organizer'), async (req, res, next) => {
   try {
-    const { title, date, rows, seatsPerRow } = req.body;
-    const rowCount = Number(rows);
-    const seatCount = Number(seatsPerRow);
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const { title, date, rows, seatsPerRow } = body;
     if (
       typeof title !== 'string' || !title.trim() ||
-      !Number.isInteger(rowCount) || rowCount < 1 || rowCount > 20 ||
-      !Number.isInteger(seatCount) || seatCount < 1 || seatCount > 30 ||
-      !Number.isFinite(Date.parse(date))
+      title.trim().length > 120 ||
+      typeof rows !== 'number' || !Number.isInteger(rows) || rows < 1 || rows > 20 ||
+      typeof seatsPerRow !== 'number' || !Number.isInteger(seatsPerRow) || seatsPerRow < 1 || seatsPerRow > 30 ||
+      typeof date !== 'string' || !Number.isFinite(Date.parse(date))
     ) {
       return res.status(400).json({ message: 'Provide a title, valid date, 1-20 rows and 1-30 seats per row.' });
     }
 
-    const event = await Event.create({
-      title: title.trim(),
-      date: new Date(date),
-      rows: rowCount,
-      seatsPerRow: seatCount,
-      organizer: req.user._id
-    });
+    const session = await mongoose.startSession();
     const seatDocs = [];
-    for (let row = 1; row <= rowCount; row += 1) {
-      for (let number = 1; number <= seatCount; number += 1) {
-        seatDocs.push({ event: event._id, row, number });
+    for (let row = 1; row <= rows; row += 1) {
+      for (let number = 1; number <= seatsPerRow; number += 1) {
+        seatDocs.push({ row, number });
       }
     }
-    await Seat.insertMany(seatDocs);
+    let event;
+    try {
+      await session.withTransaction(async () => {
+        const [createdEvent] = await Event.create([{
+          title: title.trim(),
+          date: new Date(date),
+          rows,
+          seatsPerRow,
+          organizer: req.user._id
+        }], { session });
+        event = createdEvent;
+        await Seat.insertMany(seatDocs.map((seat) => ({ ...seat, event: createdEvent._id })), { session });
+      });
+    } finally {
+      await session.endSession();
+    }
     return res.status(201).json(event);
   } catch (error) {
     return next(error);
@@ -63,7 +73,7 @@ router.get('/:eventId', async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid event id.' });
     }
     const io = req.app.get('io');
-    await expireDueSeats(io);
+    await expireDueSeats(io, { eventId: req.params.eventId });
     const event = await getEventWithSeats(req.params.eventId, req.user._id);
     if (!event) return res.status(404).json({ message: 'Event not found.' });
     return res.json(event);
@@ -79,14 +89,14 @@ router.post('/:eventId/seats/:seatId/hold', requireRole('customer'), async (req,
       return res.status(400).json({ message: 'Invalid event or seat id.' });
     }
     const io = req.app.get('io');
-    await expireDueSeats(io, req.user._id);
+    await expireDueSeats(io, { userId: req.user._id });
     const seat = await holdSeat({
       io,
       eventId,
       seatId,
       userId: req.user._id
     });
-    return res.status(201).json({ seat, holdDurationSeconds: Number(process.env.HOLD_DURATION_SECONDS || 774) });
+    return res.status(201).json({ seat, holdDurationSeconds: HOLD_DURATION_SECONDS });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ message: error.message });
     return next(error);
@@ -101,7 +111,7 @@ router.post('/:eventId/bookings', requireRole('customer'), async (req, res, next
     const result = await bookSeats({
       io: req.app.get('io'),
       eventId: req.params.eventId,
-      seatIds: req.body.seatIds,
+      seatIds: req.body && req.body.seatIds,
       userId: req.user._id
     });
     return res.status(201).json(result);

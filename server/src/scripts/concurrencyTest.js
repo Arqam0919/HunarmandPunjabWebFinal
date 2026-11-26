@@ -22,6 +22,9 @@ async function main() {
   if (!eventId || !seatId || emails.length < 2 || !password) {
     throw new Error('Set TEST_EVENT_ID, TEST_SEAT_ID, at least two TEST_CUSTOMER_EMAILS, and TEST_CUSTOMER_PASSWORD.');
   }
+  if (new Set(emails.map((email) => email.toLowerCase())).size !== emails.length) {
+    throw new Error('TEST_CUSTOMER_EMAILS must contain unique customer accounts.');
+  }
   const accounts = await Promise.all(emails.map(async (email) => {
     const result = await post('/auth/login', { email, password });
     if (result.status !== 200) throw new Error(`Could not log in ${email}: ${JSON.stringify(result.body)}`);
@@ -39,8 +42,8 @@ async function main() {
     result: body.message || body.seat.status
   })));
   console.log(`Successful holds: ${winners.length}/${results.length}`);
-  if (winners.length !== 1) {
-    throw new Error('Expected exactly one successful hold. Ensure the test seat is Available before running.');
+  if (winners.length !== 1 || results.some((result) => result.status !== 201 && result.status !== 409)) {
+    throw new Error('Expected exactly one successful hold and a 409 for every losing request. Ensure the test seat is Available before running.');
   }
 }
 

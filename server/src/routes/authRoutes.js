@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const router = express.Router();
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function tokenFor(user) {
   return jwt.sign(
@@ -15,13 +16,20 @@ function tokenFor(user) {
 
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
-    if (typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string' || password.length < 8) {
-      return res.status(400).json({ message: 'Name, email and a password of at least 8 characters are required.' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const { name, email, password } = body;
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normalizedName = typeof name === 'string' ? name.trim() : '';
+    if (
+      !normalizedName || normalizedName.length > 80 ||
+      normalizedEmail.length > 254 || !emailPattern.test(normalizedEmail) ||
+      typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72
+    ) {
+      return res.status(400).json({ message: 'Enter a name, valid email, and a password of 8-72 bytes.' });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ name, email, passwordHash, role: 'customer' });
+    const user = await User.create({ name: normalizedName, email: normalizedEmail, passwordHash, role: 'customer' });
     return res.status(201).json({
       token: tokenFor(user),
       user: { id: user._id, name: user.name, email: user.email, role: user.role }
@@ -34,7 +42,8 @@ router.post('/register', async (req, res, next) => {
 
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const { email, password } = body;
     const user = typeof email === 'string'
       ? await User.findOne({ email: email.toLowerCase().trim() })
       : null;

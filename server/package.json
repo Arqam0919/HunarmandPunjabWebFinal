@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "dev": "node src/index.js",
+    "test": "node --test",
     "seed:organizer": "node src/scripts/createOrganizer.js",
     "test:concurrency": "node src/scripts/concurrencyTest.js"
   },
@@ -16,8 +17,5 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
     "socket.io": "^4.8.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
   }
 }
